@@ -30,14 +30,17 @@ window.addEventListener('load', () => {
         if (socket && socket.connected) {
             socket.emit('stop-stream');
         }
+
         if (audioStream) {
             audioStream.getTracks().forEach(track => track.stop());
             audioStream = null;
         }
+
         if (workletNode) {
             try { workletNode.disconnect(); } catch (_) {}
             workletNode = null;
         }
+
         if (audioContext) {
             try { audioContext.close(); } catch (_) {}
             audioContext = null;
@@ -46,6 +49,7 @@ window.addEventListener('load', () => {
 
     function stopBrowserFallback() {
         browserFallbackActive = false;
+
         if (browserRecognition) {
             const recognition = browserRecognition;
             browserRecognition = null;
@@ -59,7 +63,7 @@ window.addEventListener('load', () => {
         stopBrowserFallback();
     }
 
-    function emitWithAck(eventName, payload, timeoutMs = 15000) {
+    function emitWithAck(eventName, payload, timeoutMs = 8000) {
         if (!socket || !socket.connected) {
             return Promise.resolve({
                 ok: false,
@@ -67,13 +71,20 @@ window.addEventListener('load', () => {
                 reason: 'Backend unavailable.'
             });
         }
+
         return new Promise((resolve) => {
             let finished = false;
+
             const timeout = setTimeout(() => {
                 if (finished) return;
                 finished = true;
-                resolve({ ok: false, fallback: 'browser', reason: 'Backend timeout.' });
+                resolve({
+                    ok: false,
+                    fallback: 'browser',
+                    reason: 'Backend timeout.'
+                });
             }, timeoutMs);
+
             socket.emit(eventName, payload, (response) => {
                 if (finished) return;
                 finished = true;
@@ -85,10 +96,14 @@ window.addEventListener('load', () => {
 
     function startBrowserFallback(reason) {
         if (browserFallbackActive) return;
+
         stopDeepgramCapture();
 
         if (!SpeechRecognition) {
-            setStatus(`${reason || 'Transcription unavailable.'} Browser fallback only works in Chrome/Edge.`, true);
+            setStatus(
+                `${reason || 'Transcription unavailable.'} Browser fallback is only supported in Chrome/Edge.`,
+                true
+            );
             return;
         }
 
@@ -98,7 +113,9 @@ window.addEventListener('load', () => {
         browserRecognition.interimResults = true;
         browserRecognition.lang = 'en-US';
 
-        browserRecognition.onstart = () => setStatus(reason || 'Using browser speech recognition fallback.', true);
+        browserRecognition.onstart = () => {
+            setStatus(reason || 'Using browser speech recognition fallback.', true);
+        };
 
         browserRecognition.onresult = (event) => {
             let fullTranscript = '';
@@ -112,6 +129,7 @@ window.addEventListener('load', () => {
         browserRecognition.onerror = (event) => {
             console.error('Browser fallback error:', event);
             setStatus(`Fallback error: ${event.error}`, true);
+
             if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
                 browserFallbackActive = false;
             }
@@ -119,17 +137,22 @@ window.addEventListener('load', () => {
 
         browserRecognition.onend = () => {
             if (!browserFallbackActive) return;
-            try { browserRecognition.start(); }
-            catch (_) {
+
+            try {
+                browserRecognition.start();
+            } catch (_) {
                 setTimeout(() => {
                     if (!browserFallbackActive) return;
-                    try { browserRecognition.start(); } catch (err) { console.error(err); }
+                    try { browserRecognition.start(); } catch (err) {
+                        console.error('Fallback restart failed:', err);
+                    }
                 }, 500);
             }
         };
 
-        try { browserRecognition.start(); }
-        catch (error) {
+        try {
+            browserRecognition.start();
+        } catch (error) {
             console.error('Could not start browser fallback:', error);
             setStatus(`Could not start browser fallback: ${error.message}`, true);
         }
@@ -137,10 +160,16 @@ window.addEventListener('load', () => {
 
     async function startDeepgramCapture() {
         audioContext = new (window.AudioContext || window.webkitAudioContext)();
-        if (audioContext.state === 'suspended') await audioContext.resume();
+
+        if (audioContext.state === 'suspended') {
+            await audioContext.resume();
+        }
+
         await audioContext.audioWorklet.addModule('audio-processor.js');
 
-        const response = await emitWithAck('start-stream', { sampleRate: audioContext.sampleRate });
+        const response = await emitWithAck('start-stream', {
+            sampleRate: audioContext.sampleRate
+        });
 
         if (!response || response.ok === false) {
             stopDeepgramCapture();
@@ -149,14 +178,23 @@ window.addEventListener('load', () => {
         }
 
         audioStream = await navigator.mediaDevices.getUserMedia({
-            audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true }
+            audio: {
+                channelCount: 1,
+                echoCancellation: true,
+                noiseSuppression: true,
+                autoGainControl: true
+            }
         });
 
         const source = audioContext.createMediaStreamSource(audioStream);
         workletNode = new AudioWorkletNode(audioContext, 'pcm-processor');
+
         workletNode.port.onmessage = (event) => {
-            if (socket && socket.connected) socket.emit('audio-data', event.data);
+            if (socket && socket.connected) {
+                socket.emit('audio-data', event.data);
+            }
         };
+
         source.connect(workletNode);
         setStatus('Listening...', false);
     }
@@ -169,10 +207,12 @@ window.addEventListener('load', () => {
             setStatus('Starting...', true);
 
             if (socket && !socket.connected) {
-                setStatus('Waking up backend (can take up to 60s on first load)...', true);
                 await new Promise((resolve) => {
-                    const timer = setTimeout(resolve, 60000);
-                    socket.once('connect', () => { clearTimeout(timer); resolve(); });
+                    const timer = setTimeout(resolve, 4000);
+                    socket.once('connect', () => {
+                        clearTimeout(timer);
+                        resolve();
+                    });
                 });
             }
 
@@ -196,36 +236,32 @@ window.addEventListener('load', () => {
         return;
     }
 
-    // Wake backend immediately (Render free tier cold start mitigation)
-    fetch(`${SOCKET_URL}/health`, { method: 'GET', mode: 'cors' })
-        .then(() => console.log('[Backend] Wake ping sent.'))
-        .catch(() => console.warn('[Backend] Wake ping failed; will retry via socket.'));
-
     socket = io(SOCKET_URL, {
         transports: ['websocket', 'polling'],
         reconnection: true,
         reconnectionAttempts: Infinity,
-        reconnectionDelay: 1000,
-        reconnectionDelayMax: 5000,
-        timeout: 60000,
+        timeout: 2000,
     });
 
     socket.on('connect', () => {
-        if (!sessionStarted) setStatus('Click anywhere to start transcribing.', true);
-    });
-
-    socket.on('connect_error', (err) => {
-        console.warn('Socket connect_error:', err.message);
         if (!sessionStarted) {
-            setStatus('Backend waking up... click anywhere to start.', true);
+            setStatus('Click anywhere to start transcribing.', true);
         }
     });
 
-    socket.on('transcript', renderTranscript);
+    socket.on('connect_error', () => {
+        if (!sessionStarted) {
+            setStatus('Click anywhere to start transcribing. If the backend is asleep, browser fallback will be used.', true);
+        }
+    });
+
+    socket.on('transcript', (transcript) => {
+        renderTranscript(transcript);
+    });
 
     socket.on('deepgram-unavailable', (payload) => {
         startBrowserFallback(
-            payload?.reason || 'Deepgram unavailable. Using browser speech recognition fallback.'
+            payload?.reason || 'Deepgram credits exhausted or unavailable. Using browser speech recognition fallback.'
         );
     });
 
