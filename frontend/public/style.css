@@ -1,0 +1,59 @@
+body, html {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background-color: #121212;
+    color: #EAEAEA;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+#transcription-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    width: 100%;
+    height: 100%;
+    padding: 2vw;
+    box-sizing: border-box;
+}
+
+#transcription-text {
+    margin: 0;
+    font-size: 10vw;
+    font-weight: bold;
+    text-align: center;
+    line-height: 1.2;
+    text-shadow: 2px 2px 8px rgba(0,0,0,0.5);
+    transition: color 0.3s ease-in-out;
+}
+
+#status {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    background-color: rgba(0, 0, 0, 0.5);
+    padding: 10px 20px;
+    border-radius: 20px;
+    font-size: 16px;
+    color: #fff;
+    opacity: 1;
+    transition: opacity 1s ease-in-out 2s;
+}
+
+#mode-indicator {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background-color: #555;
+    box-shadow: 0 0 8px rgba(0,0,0,0.5);
+}
+
+#mode-indicator[data-mode="deepgram"] { background-color: #00e676; }
+#mode-indicator[data-mode="fallback"] { background-color: #ffb300; }
+#mode-indicator[data-mode="error"] { background-color: #ff1744; }
