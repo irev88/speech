@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Live Transcription (Netlify + Render)</title>
+    <title>Live Transcription</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -11,9 +11,9 @@
         <p id="transcription-text"></p>
     </div>
     <div id="status">Connecting to server...</div>
-    <div id="mode-indicator" title="Transcription mode"></div>
 
-    <script src="/socket.io/socket.io.js"></script>
+    <script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>
+    <script src="config.js"></script>
     <script src="app.js"></script>
 </body>
 </html>
