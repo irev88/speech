@@ -217,7 +217,6 @@ window.addEventListener('load', () => {
             }
 
             if (!socket || !socket.connected) {
-                startBrowserFallback('Backend unavailable. Using browser speech recognition fallback.');
                 return;
             }
 
